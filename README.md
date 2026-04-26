@@ -37,19 +37,19 @@ A Reproducible Methodology for Sub-Millisecond Measurements on Linux"*
 
 The library configures the system according to the paper's methodology:
 
-| Step                    | What it does                                              | Reboot? |
-|------------------------|-----------------------------------------------------------|---------|
-| GRUB / kernel params   | `isolcpus`, `nohz_full`, `rcu_nocbs`                      | **Yes** |
-| SMT disable            | Runtime disable or BIOS recommendation                    | Maybe   |
-| Frequency locking      | Disable boost, governor → performance                     | No      |
-| IRQ affinity           | Migrate all IRQs to housekeeping core                     | No      |
-| Service shutdown       | Stop irqbalance, timesyncd, etc.                          | No      |
-| Swap disable           | `swapoff -a`                                              | No      |
-| Network namespaces     | Create ns_server / ns_client + veth-srv / veth-cli pair   | No      |
-| Offloading disable     | TSO / GSO / GRO off on veth interfaces                    | No      |
-| NetEm                  | Apply delay / jitter / loss on veth (symmetrically)       | No      |
-| Process isolation      | `taskset -c` core pinning + `chrt -f` RT scheduling       | No      |
-| Sysctl tuning          | ASLR off, net buffer sizes, drop page cache               | No      |
+| Step                    | What it does                                                                                  | Reboot? |
+|------------------------|-----------------------------------------------------------------------------------------------|---------|
+| GRUB / kernel params   | `isolcpus`, `nohz_full`, `rcu_nocbs`                                                          | **Yes** |
+| SMT disable            | The tool will notify you if changes are needed,but you must manually disable SMT in your BIOS | Maybe   |
+| Frequency locking      | Disable boost, governor → performance                                                         | No      |
+| IRQ affinity           | Migrate all IRQs to housekeeping core                                                         | No      |
+| Service shutdown       | Stop irqbalance, timesyncd, etc.                                                              | No      |
+| Swap disable           | `swapoff -a`                                                                                  | No      |
+| Network namespaces     | Create ns_server / ns_client + veth-srv / veth-cli pair                                       | No      |
+| Offloading disable     | TSO / GSO / GRO off on veth interfaces                                                        | No      |
+| NetEm                  | Apply delay / jitter / loss on veth (symmetrically)                                           | No      |
+| Process isolation      | `taskset -c` core pinning + `chrt -f` RT scheduling                                           | No      |
+| Sysctl tuning          | ASLR off, net buffer sizes, drop page cache                                                   | No      |
 
 When kernel parameters are modified, the library returns `UBENCHMON_ERR_REBOOT`
 and the TUI shows a clear **"REBOOT REQUIRED"** modal.
@@ -102,17 +102,17 @@ when the TUI should attach to an already-running monitor without interfering
 with it ("piggyback mode").
 
 ```
-                ┌───────────────────────────┐
+                ┌────────────────────────────┐
                 │     ubenchmon daemon       │
                 │  monitor loop  100 ms tick │
                 │  NDJSON logger             │
                 │  writes snap.bin atomically│
-                └───────────┬───────────────┘
+                └───────────┬────────────────┘
                             │ /var/run/ubenchmon/snap.bin
-                ┌───────────▼───────────────┐
+                ┌───────────▼────────────────┐
                 │   ubenchmon TUI (optional) │
                 │   reads snap, piggyback    │
-                └───────────────────────────┘
+                └────────────────────────────┘
 ```
 
 Two persistence modes are supported:
