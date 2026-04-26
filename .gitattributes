@@ -1,0 +1,19 @@
+# Force LF for all text files — this is a Linux-only project
+* text=auto eol=lf
+
+# Explicitly LF
+*.c     eol=lf
+*.h     eol=lf
+*.rs    eol=lf
+*.toml  eol=lf
+*.yml   eol=lf
+*.yaml  eol=lf
+*.md    eol=lf
+*.json  eol=lf
+*.sh    eol=lf
+Makefile eol=lf
+
+# Binaries — no line ending conversion
+*.so    binary
+*.a     binary
+*.deb   binary
