@@ -209,6 +209,18 @@ fn handle_key(app: &mut App, key: KeyEvent) {
         return;
     }
 
+    // ── Teardown / persistent-service warning ────────────────────────
+    if app.teardown_service_warn_modal {
+        match key.code {
+            KeyCode::Char('d') | KeyCode::Char('D') =>
+                app.teardown_warn_disable_and_continue(),
+            KeyCode::Char('c') | KeyCode::Char('C') | KeyCode::Esc =>
+                app.teardown_warn_cancel(),
+            _ => {}
+        }
+        return;
+    }
+
     // ── Teardown picker ──────────────────────────────────────────────
     if app.teardown_picker_active {
         match key.code {
@@ -446,6 +458,9 @@ fn render_status_bar(f: &mut Frame, area: Rect, app: &App) {
     } else if app.reboot_modal {
         Span::styled(" ⚠ REBOOT PENDING — R to reboot / Esc to dismiss ",
             Style::default().fg(Color::Yellow).bold())
+    } else if app.teardown_service_warn_modal {
+        Span::styled(" ⚠ PERSISTENT SERVICE ON — D disable & continue / C cancel ",
+            Style::default().fg(Color::Red).bold())
     } else if app.teardown_picker_active {
         Span::styled(" PICKER: ↑↓ select  Enter confirm  i preview  Esc cancel ",
             Style::default().fg(Color::Cyan))

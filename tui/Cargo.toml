@@ -2,7 +2,7 @@
 name = "ubenchmon-tui"
 version = "0.1.0"
 edition = "2021"
-description = "Terminal UI for benchmon — setup, monitoring, and statistics"
+description = "Terminal UI for ubenchmon — setup, monitoring, and statistics"
 license = "MIT"
 
 [[bin]]

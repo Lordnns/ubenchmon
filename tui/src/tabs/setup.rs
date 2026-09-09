@@ -57,6 +57,9 @@ pub fn render(f: &mut Frame, area: Rect, app: &App) {
     if app.reboot_modal {
         render_reboot_modal(f, area, app);
     }
+    if app.teardown_service_warn_modal {
+        render_teardown_service_warn(f, area);
+    }
 }
 
 fn render_form(f: &mut Frame, area: Rect, app: &App) {
@@ -264,6 +267,60 @@ fn render_reboot_modal(f: &mut Frame, area: Rect, _app: &App) {
             .title(Span::styled(
                 " ⚠  REBOOT REQUIRED ",
                 Style::default().fg(Color::Yellow).bold())))
+        .alignment(Alignment::Left);
+
+    f.render_widget(block, modal_area);
+}
+
+// ------------------------------------------------------------------ //
+//  Persistent-service teardown warning overlay                        //
+// ------------------------------------------------------------------ //
+
+fn render_teardown_service_warn(f: &mut Frame, area: Rect) {
+    let w = 66u16;
+    let h = 13u16;
+    let x = area.x + area.width.saturating_sub(w) / 2;
+    let y = area.y + area.height.saturating_sub(h) / 2;
+    let modal_area = Rect { x, y, width: w.min(area.width), height: h.min(area.height) };
+
+    f.render_widget(Clear, modal_area);
+
+    let text = vec![
+        Line::default(),
+        Line::from(Span::styled(
+            "  A PERSISTENT systemd service is still installed.",
+            Style::default().fg(Color::White).bold())),
+        Line::default(),
+        Line::from(Span::styled(
+            "  It re-applies the FULL setup — GRUB kernel params,",
+            Style::default().fg(Color::White))),
+        Line::from(Span::styled(
+            "  isolation and namespaces — on EVERY boot. Tearing",
+            Style::default().fg(Color::White))),
+        Line::from(Span::styled(
+            "  down without disabling it will NOT return the machine",
+            Style::default().fg(Color::White))),
+        Line::from(Span::styled(
+            "  to its original state: the service resurrects it.",
+            Style::default().fg(Color::White))),
+        Line::default(),
+        Line::from(vec![
+            Span::styled("   [ D ] Disable service & continue  ",
+                Style::default().fg(Color::Black).bg(Color::Red).bold()),
+            Span::raw("  "),
+            Span::styled("  [ C / Esc ] Cancel  ",
+                Style::default().fg(Color::Black).bg(Color::DarkGray).bold()),
+        ]),
+        Line::default(),
+    ];
+
+    let block = Paragraph::new(text)
+        .block(Block::default()
+            .borders(Borders::ALL)
+            .border_style(Style::default().fg(Color::Red).bold())
+            .title(Span::styled(
+                " ⚠  PERSISTENT SERVICE ENABLED ",
+                Style::default().fg(Color::Red).bold())))
         .alignment(Alignment::Left);
 
     f.render_widget(block, modal_area);
@@ -581,7 +638,7 @@ fn run_action(app: &mut App, idx: usize) {
         }
         // TEARDOWN — index 26
         26 => {
-            app.open_teardown_picker();
+            app.request_teardown();
         }
         // REFRESH VERIFY — index 27
         27 => {

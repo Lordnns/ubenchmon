@@ -15,26 +15,26 @@ fn main() {
         .flag_if_supported("-Wno-builtin-macro-redefined")
         .flag_if_supported("-Wno-stringop-truncation")
         .flag_if_supported("-Wno-format-truncation")
-        .compile("benchmon");
+        .compile("ubenchmon");
 
     let out_path = PathBuf::from(env::var("OUT_DIR").unwrap());
     let bindings_out = out_path.join("bindings.rs");
 
     // Try bindgen if libclang is available; otherwise use pre-generated
-    let use_bindgen = env::var("BENCHMON_BINDGEN").is_ok()
+    let use_bindgen = env::var("UBENCHMON_BINDGEN").is_ok()
         || cfg!(feature = "bindgen");
 
     if use_bindgen {
         #[cfg(feature = "bindgen")]
         {
             let bindings = bindgen::Builder::default()
-                .header("../include/benchmon.h")
+                .header("../include/ubenchmon.h")
                 .parse_callbacks(Box::new(bindgen::CargoCallbacks::new()))
                 .derive_debug(true)
                 .derive_default(true)
-                .allowlist_function("benchmon_.*")
-                .allowlist_type("benchmon_.*")
-                .allowlist_var("BENCHMON_.*")
+                .allowlist_function("ubenchmon_.*")
+                .allowlist_type("ubenchmon_.*")
+                .allowlist_var("UBENCHMON_.*")
                 .generate()
                 .expect("Unable to generate bindings");
             bindings
@@ -50,6 +50,6 @@ fn main() {
                      install libclang-dev or ensure src/bindings_pregenerated.rs exists");
     }
 
-    println!("cargo:rerun-if-changed=../include/benchmon.h");
+    println!("cargo:rerun-if-changed=../include/ubenchmon.h");
     println!("cargo:rerun-if-changed=../src/");
 }

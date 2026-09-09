@@ -22,7 +22,7 @@ use crate::logger::MetricLogger;
 // ------------------------------------------------------------------ //
 
 pub const RUN_DIR:   &str = "/var/run/ubenchmon";
-pub const PID_FILE:  &str = "/var/run/ubenchmon/benchmon.pid";
+pub const PID_FILE:  &str = "/var/run/ubenchmon/ubenchmon.pid";
 pub const SNAP_FILE: &str = "/var/run/ubenchmon/snap.bin";
 pub const SNAP_TMP:  &str = "/var/run/ubenchmon/snap.tmp";
 pub const MODE_FILE: &str = "/var/run/ubenchmon/service.mode";
@@ -76,6 +76,10 @@ pub fn current_mode() -> Option<ServiceMode> {
         "persistent" => Some(ServiceMode::Persistent),
         _ => None,
     }
+}
+
+pub fn is_persistent() -> bool {
+    Path::new(UNIT_FILE).exists()
 }
 
 // ------------------------------------------------------------------ //

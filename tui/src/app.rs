@@ -131,6 +131,8 @@ pub struct App {
     pub teardown_picker_idx: usize,
     pub teardown_picker_preview: bool,
 
+    pub teardown_service_warn_modal: bool,
+
     // Monitor (owned — only used when NOT in piggyback mode)
     pub monitor: Option<ffi::Monitor>,
     pub latest_snapshot: Option<ffi::Snapshot>,
@@ -188,6 +190,7 @@ impl App {
             teardown_snapshots: Vec::new(),
             teardown_picker_idx: 0,
             teardown_picker_preview: false,
+            teardown_service_warn_modal: false,
             monitor: None,
             latest_snapshot: None,
             cpu_history: Vec::new(),
@@ -375,6 +378,43 @@ impl App {
     // ---------------------------------------------------------------- //
     //  Teardown picker                                                  //
     // ---------------------------------------------------------------- //
+
+    pub fn request_teardown(&mut self) {
+        if service::is_persistent() {
+            self.teardown_service_warn_modal = true;
+            self.log(LogLevel::Warn,
+                "Persistent service is enabled — teardown blocked pending confirmation");
+        } else {
+            self.open_teardown_picker();
+        }
+    }
+
+    pub fn teardown_warn_disable_and_continue(&mut self) {
+        self.teardown_service_warn_modal = false;
+        self.log(LogLevel::Warn, "Disabling persistent service before teardown...");
+        match service::disable() {
+            Ok(()) => {
+                self.service_active = false;
+                self.piggyback_mode = false;
+                self.service_mode   = None;
+                self.log(LogLevel::Success,
+                    "Persistent service disabled and systemd unit removed");
+                self.open_teardown_picker();
+            }
+            Err(e) => {
+                self.log(LogLevel::Error,
+                    &format!("Failed to disable service: {e}"));
+                self.log(LogLevel::Error,
+                    "Teardown aborted — resolve the service before retrying");
+            }
+        }
+    }
+    
+    pub fn teardown_warn_cancel(&mut self) {
+        self.teardown_service_warn_modal = false;
+        self.log(LogLevel::Info,
+            "Teardown cancelled — persistent service left installed");
+    }
 
     pub fn open_teardown_picker(&mut self) {
         self.teardown_snapshots = snapshot_store::list();

@@ -177,7 +177,7 @@ cargo build --release
 
 ```bash
 # Check the Releases page for the current version tag
-wget https://github.com/Lordnns/benchmon/releases/download/{VERSION}/ubenchmon.deb
+wget https://github.com/Lordnns/ubenchmon/releases/download/{VERSION}/ubenchmon.deb
 sudo dpkg -i ubenchmon.deb
 ```
 
@@ -238,7 +238,7 @@ process invocation.
 | `/var/lib/ubenchmon/active_config.json`     | Last-applied setup config (JSON)            |
 | `/var/lib/ubenchmon/snapshots/<ISO>/`       | Config snapshots before every Apply         |
 | `/var/run/ubenchmon/snap.bin`               | Latest monitor snapshot (daemon IPC)        |
-| `/var/run/ubenchmon/benchmon.pid`           | Daemon PID file                             |
+| `/var/run/ubenchmon/ubenchmon.pid`          | Daemon PID file                             |
 | `/var/run/ubenchmon/service.mode`           | `transient` or `persistent`                 |
 | `/var/log/ubenchmon/metrics_<ISO>.jsonl`    | NDJSON metric log (one object per line)     |
 | `/etc/systemd/system/ubenchmon.service`     | Systemd unit (persistent mode only)         |

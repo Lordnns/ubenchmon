@@ -39,16 +39,9 @@ static void result_append(ubenchmon_setup_result_t *r, const char *fmt, ...) {
 
 
 //  GRUB preconfig save / restore
-//
-//  Stores exactly what nohz_full= and rcu_nocbs= looked like in
-//  /proc/cmdline BEFORE ubenchmon ever touches GRUB.
-//  Empty string = param was completely absent from the cmdline.
-//  Deleted by restore_grub_cmdline() after a successful restore so
-//  the next Apply captures a fresh baseline.
 #define GRUB_PRECONFIG "/var/lib/ubenchmon/grub_preconfig.json"
 
 // Extract the core-list value of a cmdline param.
-// e.g. cmdline="... nohz_full=2,3,4,5 ..." key="nohz_full" → "2,3,4,5"
 // Returns empty string (out[0]=='\0') if the param is absent.
 static void extract_cmdline_param(const char *cmdline, const char *key,
                                   char *out, size_t out_len)
@@ -76,22 +69,30 @@ static void save_grub_preconfig(void)
     char cmdline[2048] = {0};
     ubenchmon_read_sysfs_str("/proc/cmdline", cmdline, sizeof(cmdline));
 
-    char nohz[256] = {0};
-    char rcu[256]  = {0};
+    char nohz[256]  = {0};
+    char rcu[256]   = {0};
+    char isol[256]  = {0};
+    char cstate[64] = {0};
     extract_cmdline_param(cmdline, "nohz_full", nohz, sizeof(nohz));
     extract_cmdline_param(cmdline, "rcu_nocbs",  rcu,  sizeof(rcu));
+    extract_cmdline_param(cmdline, "isolcpus",   isol, sizeof(isol));
+    extract_cmdline_param(cmdline, "processor.max_cstate", cstate, sizeof(cstate));
+    int nosoft = (strstr(cmdline, "nosoftlockup") != NULL) ? 1 : 0;
 
     ubenchmon_exec("mkdir -p /var/lib/ubenchmon", NULL, 0);
 
-    // Store as JSON strings.  Empty string = param was absent.
+    // Store as JSON.  Empty string / false = param was absent.
     // This is the canonical restore target for teardown.
-    char json[512];
+    char json[1024];
     snprintf(json, sizeof(json),
              "{\n"
              "  \"nohz_full_cores\": \"%s\",\n"
-             "  \"rcu_nocbs_cores\": \"%s\"\n"
+             "  \"rcu_nocbs_cores\": \"%s\",\n"
+             "  \"isolcpus\": \"%s\",\n"
+             "  \"max_cstate\": \"%s\",\n"
+             "  \"nosoftlockup\": %s\n"
              "}\n",
-             nohz, rcu);
+             nohz, rcu, isol, cstate, nosoft ? "true" : "false");
 
     FILE *fp = fopen(GRUB_PRECONFIG, "w");
     if (fp) { fputs(json, fp); fclose(fp); }
@@ -120,59 +121,70 @@ static int read_json_str(const char *buf, const char *key,
 }
 
 // Restore GRUB to its pre-ubenchmon state and regenerate grub.cfg.
-//
-// Algorithm:
-//   1. Strip ALL nohz_full= and rcu_nocbs= occurrences from GRUB.
-//      (Unconditional — removes whatever ubenchmon may have written.)
-//   2. If the saved value was non-empty, re-inject it.
-//      If the saved value was empty (param was absent), do nothing —
-//      the strip step already removed it completely.
-//   3. Regenerate grub.cfg and delete the preconfig file.
 static void restore_grub_cmdline(void)
 {
     FILE *fp = fopen(GRUB_PRECONFIG, "r");
     if (!fp) return; // nothing to restore
 
-    char buf[512] = {0};
+    char buf[1024] = {0};
     size_t n = fread(buf, 1, sizeof(buf) - 1, fp);
     fclose(fp);
     buf[n] = '\0';
 
-    char nohz[256] = {0};
-    char rcu[256]  = {0};
+    char nohz[256]  = {0};
+    char rcu[256]   = {0};
+    char isol[256]  = {0};
+    char cstate[64] = {0};
     read_json_str(buf, "nohz_full_cores", nohz, sizeof(nohz));
     read_json_str(buf, "rcu_nocbs_cores",  rcu,  sizeof(rcu));
+    read_json_str(buf, "isolcpus",         isol, sizeof(isol));
+    read_json_str(buf, "max_cstate",       cstate, sizeof(cstate));
+    int nosoft = (strstr(buf, "\"nosoftlockup\": true") != NULL) ? 1 : 0;
 
     const char *gp = "/etc/default/grub";
     struct stat st;
     if (stat(gp, &st) != 0) { remove(GRUB_PRECONFIG); return; }
 
-    ubenchmon_exec("cp /etc/default/grub /etc/default/grub.benchmon.prerestore.bak",
+    ubenchmon_exec("cp /etc/default/grub /etc/default/grub.ubenchmon.prerestore.bak",
                   NULL, 0);
 
-    // Step 1: strip both params completely
+    // Step 1: strip EVERY param ubenchmon may have added, completely.
     ubenchmon_exec(
-        "sed -i 's/ nohz_full=[^ \"]*//g; s/ rcu_nocbs=[^ \"]*//g' "
-        "/etc/default/grub",
+        "sed -i 's/ isolcpus=[^ \"]*//g; "
+                 "s/ nohz_full=[^ \"]*//g; "
+                 "s/ rcu_nocbs=[^ \"]*//g; "
+                 "s/ processor\\.max_cstate=[^ \"]*//g; "
+                 "s/ nosoftlockup//g' /etc/default/grub",
         NULL, 0);
 
-    // Step 2: re-inject original values only if they were present
+    char reinject[1024] = {0};
+    if (isol[0] != '\0') {
+        strncat(reinject, " isolcpus=", sizeof(reinject) - strlen(reinject) - 1);
+        strncat(reinject, isol,         sizeof(reinject) - strlen(reinject) - 1);
+    }
     if (nohz[0] != '\0') {
-        char sed[512];
-        snprintf(sed, sizeof(sed),
-                 "sed -i 's|^GRUB_CMDLINE_LINUX=\"\\(.*\\)\"|"
-                 "GRUB_CMDLINE_LINUX=\"\\1 nohz_full=%s\"|' "
-                 "/etc/default/grub",
-                 nohz);
-        ubenchmon_exec(sed, NULL, 0);
+        strncat(reinject, " nohz_full=", sizeof(reinject) - strlen(reinject) - 1);
+        strncat(reinject, nohz,          sizeof(reinject) - strlen(reinject) - 1);
     }
     if (rcu[0] != '\0') {
-        char sed[512];
+        strncat(reinject, " rcu_nocbs=", sizeof(reinject) - strlen(reinject) - 1);
+        strncat(reinject, rcu,           sizeof(reinject) - strlen(reinject) - 1);
+    }
+    if (cstate[0] != '\0') {
+        strncat(reinject, " processor.max_cstate=",
+                sizeof(reinject) - strlen(reinject) - 1);
+        strncat(reinject, cstate, sizeof(reinject) - strlen(reinject) - 1);
+    }
+    if (nosoft) {
+        strncat(reinject, " nosoftlockup", sizeof(reinject) - strlen(reinject) - 1);
+    }
+    if (reinject[0] != '\0') {
+        char sed[1400];
         snprintf(sed, sizeof(sed),
                  "sed -i 's|^GRUB_CMDLINE_LINUX=\"\\(.*\\)\"|"
-                 "GRUB_CMDLINE_LINUX=\"\\1 rcu_nocbs=%s\"|' "
+                 "GRUB_CMDLINE_LINUX=\"\\1%s\"|' "
                  "/etc/default/grub",
-                 rcu);
+                 reinject);
         ubenchmon_exec(sed, NULL, 0);
     }
 
@@ -250,7 +262,7 @@ static int setup_grub(const ubenchmon_setup_config_t *cfg,
         return 0;
     }
 
-    ubenchmon_exec("cp /etc/default/grub /etc/default/grub.benchmon.bak",
+    ubenchmon_exec("cp /etc/default/grub /etc/default/grub.ubenchmon.bak",
                   NULL, 0);
 
     // Inject isolcpus (+ nohz/rcu if enabled).
