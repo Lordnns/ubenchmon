@@ -179,7 +179,7 @@ pub fn enable() -> Result<(), String> {
     let unit_content = format!(
         "[Unit]\n\
          Description=ubenchmon continuous monitoring and logging service\n\
-         Documentation=https://github.com/your-org/ubenchmon\n\
+         Documentation=https://github.com/Lordnns/ubenchmon\n\
          After=network.target\n\
          DefaultDependencies=no\n\
          Before=shutdown.target\n\

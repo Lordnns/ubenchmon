@@ -139,6 +139,27 @@ The systemd unit is written to `/etc/systemd/system/ubenchmon.service` and
 re-applies the runtime setup on every boot (network namespaces, swap, IRQ
 affinity, and frequency governor do not survive a reboot).
 
+### Teardown safety
+
+Only two things ubenchmon changes survive a reboot: the **GRUB kernel
+cmdline** (`isolcpus`, `nohz_full`, `rcu_nocbs`, `processor.max_cstate`,
+`nosoftlockup`) and the **persistent systemd unit**. Teardown fully reverses
+the first — it strips every param ubenchmon added and restores the exact
+pre-ubenchmon cmdline (params you already had are preserved). Everything else
+(sysctl, governor, stopped services, IRQ affinity, netns/veth/netem) either is
+restored by Teardown or resets on the next reboot.
+
+Because a **persistent** service re-applies the full setup on every boot,
+running Teardown while one is installed would leave the machine in a state
+that resurrects itself. When you trigger Teardown with a persistent unit
+present, the Setup tab shows a blocking warning with two choices:
+
+- **`D` — Disable service & continue**: removes the systemd unit, then proceeds
+  with Teardown.
+- **`C` / `Esc` — Cancel**: aborts Teardown, leaving the service intact.
+
+If GRUB was modified, a reboot is still required to drop the kernel params.
+
 ## Build
 
 ### Prerequisites

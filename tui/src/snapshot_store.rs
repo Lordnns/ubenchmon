@@ -1,5 +1,6 @@
-//! Config snapshot store — saves a JSON copy of SetupConfig to /tmp before
-//! every Apply, so Teardown can restore any previous state.
+//! Config snapshot store — saves a JSON copy of SetupConfig to
+//! /var/lib/ubenchmon/snapshots/<ISO>/ before every Apply, so Teardown can
+//! restore any previous state.
 //!
 //! Directory layout:
 //!   /var/lib/ubenchmon/snapshots/<ISO>/

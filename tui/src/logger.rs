@@ -8,7 +8,7 @@
 //!   {"type":"latency", "time":"...", "capture_ns":<n>}
 //!   {"type":"event",   "time":"...", "event":"<type>", "detail":"<msg>"}
 //!
-//! File location: /tmp/ubenchmon_metrics_<ISO>.jsonl
+//! File location: /var/log/ubenchmon/metrics_<ISO>.jsonl
 
 use std::fs::{File, OpenOptions};
 use std::io::Write;
