@@ -1,0 +1,8 @@
+Origin: ubenchmon
+Label: ubenchmon
+Suite: stable
+Codename: stable
+Architectures: amd64
+Components: main
+Description: ubenchmon apt repository
+SignWith: EC452BB4C73CD771
