@@ -62,6 +62,12 @@ jobs:
     - name: Generate checksum
       run: sha256sum ubenchmon.deb > ubenchmon.deb.sha256
 
+    - name: Upload deb for apt-repo job
+      uses: actions/upload-artifact@v4
+      with:
+        name: ubenchmon-deb
+        path: ubenchmon.deb
+
     - name: Create GitHub Release
       uses: softprops/action-gh-release@v2
       if: startsWith(github.ref, 'refs/tags/')
@@ -77,3 +83,88 @@ jobs:
         path: |
           ubenchmon.deb
           ubenchmon.deb.sha256
+
+  apt-repo:
+    name: Publish apt repository (GitHub Pages)
+    needs: build
+    runs-on: ubuntu-22.04
+    # Only publish real tagged releases to the apt repo (skip snapshot/manual runs)
+    if: startsWith(github.ref, 'refs/tags/')
+    permissions:
+      contents: write
+    steps:
+    - name: Checkout Code
+      uses: actions/checkout@v4
+
+    - name: Download deb
+      uses: actions/download-artifact@v4
+      with:
+        name: ubenchmon-deb
+
+    - name: Install reprepro
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y reprepro
+
+    - name: Import GPG signing key
+      env:
+        GPG_PRIVATE_KEY: ${{ secrets.GPG_PRIVATE_KEY }}
+        GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
+      run: |
+        if [ -z "${GPG_PRIVATE_KEY:-}" ]; then
+          echo "::error::Secret GPG_PRIVATE_KEY is not set. See RELEASING.md." >&2
+          exit 1
+        fi
+        mkdir -p ~/.gnupg && chmod 700 ~/.gnupg
+        echo "pinentry-mode loopback"     >> ~/.gnupg/gpg.conf
+        echo "allow-loopback-pinentry"    >> ~/.gnupg/gpg-agent.conf
+        echo "allow-preset-passphrase"    >> ~/.gnupg/gpg-agent.conf
+        gpgconf --kill gpg-agent || true
+        echo "$GPG_PRIVATE_KEY" | gpg --batch --import
+        KEYID=$(gpg --list-secret-keys --with-colons | awk -F: '/^sec:/ {print $5; exit}')
+        echo "KEYID=$KEYID" >> "$GITHUB_ENV"
+        if [ -n "${GPG_PASSPHRASE:-}" ]; then
+          gpgconf --reload gpg-agent
+          KEYGRIP=$(gpg --list-secret-keys --with-keygrip --with-colons | awk -F: '/^grp:/ {print $10; exit}')
+          /usr/lib/gnupg/gpg-preset-passphrase --preset --passphrase "$GPG_PASSPHRASE" "$KEYGRIP"
+        fi
+
+    - name: Fetch existing repository state (gh-pages)
+      env:
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      run: |
+        git clone --depth 1 --branch gh-pages \
+          "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" apt-pages \
+          || mkdir -p apt-pages
+        rm -rf apt-pages/.git
+
+    - name: Add deb to the repository
+      run: |
+        mkdir -p apt-pages/conf
+        cat > apt-pages/conf/distributions <<EOF
+        Origin: ubenchmon
+        Label: ubenchmon
+        Suite: stable
+        Codename: stable
+        Architectures: amd64
+        Components: main
+        Description: ubenchmon apt repository
+        SignWith: ${KEYID}
+        EOF
+        reprepro -b apt-pages includedeb stable ubenchmon.deb
+
+    - name: Add public key, setup script and landing page
+      run: |
+        gpg --armor --export "${KEYID}" > apt-pages/ubenchmon-archive-keyring.asc
+        cp apt/setup.sh   apt-pages/setup.sh
+        cp apt/index.html apt-pages/index.html
+        # Prevent Pages/Jekyll from ignoring the pool/ and dists/ directories
+        touch apt-pages/.nojekyll
+
+    - name: Publish to GitHub Pages
+      uses: peaceiris/actions-gh-pages@v4
+      with:
+        github_token: ${{ secrets.GITHUB_TOKEN }}
+        publish_dir: ./apt-pages
+        publish_branch: gh-pages
+        keep_files: false

@@ -409,7 +409,7 @@ impl App {
             }
         }
     }
-    
+
     pub fn teardown_warn_cancel(&mut self) {
         self.teardown_service_warn_modal = false;
         self.log(LogLevel::Info,

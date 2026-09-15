@@ -6,6 +6,23 @@ for setting up and monitoring latency-sensitive protocol benchmarks on Linux.
 Built for the paper: *"Benchmarking Latency-Sensitive Network Protocols:
 A Reproducible Methodology for Sub-Millisecond Measurements on Linux"*
 
+## Quick install
+
+**Recommended — apt repository** (native `apt install`, auto-updates with `apt upgrade`):
+
+```bash
+curl -fsSL https://lordnns.github.io/ubenchmon/setup.sh | sudo sh
+```
+
+**One-shot — latest `.deb`** (no repo added; re-run to update):
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/Lordnns/ubenchmon/main/install.sh | sudo sh
+```
+
+Both always fetch the latest release — no version to look up. amd64 / x86_64 only.
+See [Install](#install) for the full comparison and manual steps.
+
 ## Architecture
 
 ```
@@ -194,18 +211,57 @@ cargo build --release
 
 ### Install
 
-**Option 1: Pre-built package (recommended)**
+All pre-built methods install the `ubenchmon` TUI binary, `libubenchmon.so`/`.a`,
+and `ubenchmon.h` in the standard system paths. Packages are **amd64 / x86_64**.
+
+| Method | Command | Native `apt`? | Auto-updates? |
+|--------|---------|---------------|---------------|
+| **A — apt repository** *(recommended)* | `curl -fsSL https://lordnns.github.io/ubenchmon/setup.sh \| sudo sh` | Yes | Yes — `sudo apt upgrade` |
+| **B — one-shot installer** | `curl -fsSL https://raw.githubusercontent.com/Lordnns/ubenchmon/main/install.sh \| sudo sh` | No | Re-run the command |
+| **C — manual `.deb`** | see below | No | Manual |
+| **D — build from source** | see below | No | Manual |
+
+**Method A — apt repository (recommended)**
+
+Registers the GitHub Pages apt repo (with its signing key), then installs. After
+this, `ubenchmon` updates like any other system package:
 
 ```bash
-# Check the Releases page for the current version tag
-wget https://github.com/Lordnns/ubenchmon/releases/download/{VERSION}/ubenchmon.deb
-sudo dpkg -i ubenchmon.deb
+curl -fsSL https://lordnns.github.io/ubenchmon/setup.sh | sudo sh
+# later, to update:
+sudo apt update && sudo apt upgrade
 ```
 
-This installs the `ubenchmon` TUI binary, `libubenchmon.so`/`.a`, and
-`ubenchmon.h` in the standard system paths.
+Prefer to do it by hand instead of piping to a shell:
 
-**Option 2: Build from source**
+```bash
+curl -fsSL https://lordnns.github.io/ubenchmon/ubenchmon-archive-keyring.asc \
+  | sudo gpg --dearmor -o /usr/share/keyrings/ubenchmon.gpg
+
+echo "deb [signed-by=/usr/share/keyrings/ubenchmon.gpg] https://lordnns.github.io/ubenchmon stable main" \
+  | sudo tee /etc/apt/sources.list.d/ubenchmon.list
+
+sudo apt update && sudo apt install ubenchmon
+```
+
+**Method B — one-shot installer**
+
+Downloads the latest `.deb` from GitHub Releases, verifies its checksum, and
+installs it via apt (no repository added). Re-run to upgrade:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/Lordnns/ubenchmon/main/install.sh | sudo sh
+```
+
+**Method C — manual `.deb`**
+
+```bash
+# always the latest release — no version tag to look up
+wget https://github.com/Lordnns/ubenchmon/releases/latest/download/ubenchmon.deb
+sudo apt install ./ubenchmon.deb
+```
+
+**Method D — build from source**
 
 ```bash
 # 1. Library + headers
