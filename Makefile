@@ -41,6 +41,6 @@ deb: all
 	cp $(STATIC) ubenchmon_deb/usr/local/lib/
 	cp include/ubenchmon.h ubenchmon_deb/usr/local/include/
 	-cp tui/target/release/ubenchmon ubenchmon_deb/usr/local/bin/ 2>/dev/null || true
-	echo "Package: ubenchmon\nVersion: $(VERSION)\nArchitecture: amd64\nMaintainer: Lordnns\nDescription: Latency-sensitive benchmark monitor library and TUI\n" > ubenchmon_deb/DEBIAN/control
+	printf 'Package: ubenchmon\nVersion: %s\nArchitecture: amd64\nMaintainer: Lordnns\nSection: utils\nPriority: optional\nDescription: Latency-sensitive benchmark monitor library and TUI\n' "$(VERSION)" > ubenchmon_deb/DEBIAN/control
 	dpkg-deb --build ubenchmon_deb ubenchmon.deb
 	rm -rf ubenchmon_deb
