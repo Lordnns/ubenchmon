@@ -48,6 +48,51 @@ static inline uint64_t parse_next_u64(const char **p) {
 }
 
 
+//  Per-core CPU utilisation from /proc/stat jiffies.
+//
+//  Finds the "cpuN " line for core_id, sums the jiffie fields, and
+//  computes busy/total.  Utilisation is the delta since the previous
+//  snapshot (stored per-core in the ctx), so it is a true "% since last
+//  sample" figure regardless of sampling interval.
+//
+//  Fields (kernel order): user nice system idle iowait irq softirq steal
+//                         guest guest_nice
+//  guest/guest_nice are already counted inside user/nice, so we sum only
+//  the first 8 fields.  idle = idle + iowait; busy = total - idle.
+static void update_core_usage(const char *stat_buf,
+                              ubenchmon_core_ctx_t *c) {
+    char needle[24];
+    int nlen = snprintf(needle, sizeof(needle), "\ncpu%d ", c->core_id);
+
+    const char *p = strstr(stat_buf, needle);
+    // First line of /proc/stat is the aggregate "cpu " with no id; a real
+    // per-core line always follows a newline, so the leading '\n' is safe.
+    if (!p) return;
+    p += nlen;
+
+    uint64_t f[8] = {0};
+    for (int i = 0; i < 8; i++) {
+        while (*p == ' ') p++;
+        if (*p < '0' || *p > '9') break;
+        f[i] = parse_next_u64(&p);
+    }
+
+    uint64_t idle  = f[3] + f[4];                       // idle + iowait
+    uint64_t total = f[0]+f[1]+f[2]+f[3]+f[4]+f[5]+f[6]+f[7];
+    uint64_t busy  = total - idle;
+
+    if (c->prev_stat_total != 0 && total > c->prev_stat_total) {
+        uint64_t dt = total - c->prev_stat_total;
+        uint64_t db = busy  - c->prev_stat_busy;
+        c->last_usage_pct = 100.0 * (double)db / (double)dt;
+    }
+    // else: first sample (or counter reset) — leave usage at 0
+
+    c->prev_stat_busy  = busy;
+    c->prev_stat_total = total;
+}
+
+
 //  Fast meminfo parser via pre-opened fd — replaces sysinfo()
 static void read_meminfo(int fd, ubenchmon_mem_sample_t *m) {
     char buf[512];
@@ -279,8 +324,9 @@ ubenchmon_monitor_t *ubenchmon_monitor_init(ubenchmon_mon_flags_t flags,
     // Lock the monitor struct in RAM — eliminates page fault jitter
     mlock(mon, sizeof(*mon));
 
-    // Open /proc/meminfo once, keep fd for hot path
-    mon->fd_meminfo = open("/proc/meminfo", O_RDONLY);
+    // Open /proc/meminfo and /proc/stat once, keep fds for hot path
+    mon->fd_meminfo   = open("/proc/meminfo", O_RDONLY);
+    mon->fd_proc_stat = open("/proc/stat",    O_RDONLY);
 
     // CPU cores ----------------------------------------------------
     if (flags & UBENCHMON_MON_CPU) {
@@ -354,6 +400,17 @@ ubenchmon_status_t ubenchmon_snapshot(ubenchmon_monitor_t *mon,
     // ---- CPU ----
     if (mon->flags & UBENCHMON_MON_CPU) {
         snap->cpu_count = mon->core_count;
+
+        // Read /proc/stat once per snapshot for per-core utilisation.
+        // Large enough for the aggregate line + up to 64 per-core lines.
+        char stat_buf[8192];
+        int have_stat = 0;
+        if (mon->fd_proc_stat >= 0) {
+            ssize_t n = pread(mon->fd_proc_stat, stat_buf,
+                              sizeof(stat_buf) - 1, 0);
+            if (n > 0) { stat_buf[n] = '\0'; have_stat = 1; }
+        }
+
         for (int i = 0; i < mon->core_count; i++) {
             ubenchmon_core_ctx_t   *c = &mon->cores[i];
             ubenchmon_cpu_sample_t *s = &snap->cpu[i];
@@ -371,6 +428,9 @@ ubenchmon_status_t ubenchmon_snapshot(ubenchmon_monitor_t *mon,
             if (c->fd_freq >= 0)
                 s->freq_mhz = (uint32_t)(ubenchmon_pread_uint64(c->fd_freq)
                                / 1000);  // kHz → MHz
+
+            if (have_stat) update_core_usage(stat_buf, c);
+            s->usage_pct = c->last_usage_pct;
         }
     }
 
@@ -440,7 +500,8 @@ ubenchmon_status_t ubenchmon_snapshot(ubenchmon_monitor_t *mon,
 void ubenchmon_monitor_destroy(ubenchmon_monitor_t *mon) {
     if (!mon) return;
 
-    if (mon->fd_meminfo >= 0) close(mon->fd_meminfo);
+    if (mon->fd_meminfo   >= 0) close(mon->fd_meminfo);
+    if (mon->fd_proc_stat >= 0) close(mon->fd_proc_stat);
 
     for (int i = 0; i < mon->core_count; i++) {
         ubenchmon_core_ctx_t *c = &mon->cores[i];

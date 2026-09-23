@@ -227,8 +227,19 @@ fn render_memory(f: &mut Frame, area: Rect, app: &App) {
                     Style::default().fg(Color::Magenta).bold()))),
         chunks[0]);
 
-    let data: Vec<u64> = app.mem_history.as_slice().iter()
-        .map(|v| (*v * 100.0) as u64).collect();
+    // Scale to the window's own min..max so steady low-memory boxes still
+    // show a visible, moving history instead of a flat sliver pinned to a
+    // fixed 0-100% axis.  A perfectly flat series renders as a steady
+    // mid-height band (present, not empty); an empty series stays empty.
+    let raw: Vec<f64> = app.mem_history.as_slice();
+    let lo = raw.iter().cloned().fold(f64::INFINITY, f64::min);
+    let hi = raw.iter().cloned().fold(f64::NEG_INFINITY, f64::max);
+    let span = hi - lo;
+    let data: Vec<u64> = if span < 0.01 {
+        raw.iter().map(|_| 5000u64).collect()          // flat → steady band
+    } else {
+        raw.iter().map(|v| (((*v - lo) / span) * 10000.0) as u64).collect()
+    };
     f.render_widget(
         Sparkline::default().data(&data).max(10000)
             .style(Style::default().fg(Color::Magenta))

@@ -33,9 +33,12 @@ typedef struct {
     int fd_cycles;         // PERF_COUNT_HW_CPU_CYCLES
     int fd_cache_misses;   // PERF_COUNT_HW_CACHE_MISSES
 
-    // For CPU usage calculation
+    // For CPU usage calculation (from /proc/stat jiffies, delta between snaps)
     uint64_t prev_timestamp_ns;
     uint64_t prev_busy_ns;
+    uint64_t prev_stat_busy;   // busy jiffies at last snapshot
+    uint64_t prev_stat_total;  // total jiffies at last snapshot
+    double   last_usage_pct;   // computed utilisation, carried between snaps
 
     // sysfs fd for frequency (kept open, pread on hot path)
     int fd_freq;
@@ -72,6 +75,7 @@ typedef struct {
 struct ubenchmon_monitor {
     ubenchmon_mon_flags_t flags;
     int fd_meminfo;
+    int fd_proc_stat;   // /proc/stat, kept open for per-core CPU usage
 
     // CPU
     ubenchmon_core_ctx_t cores[64];
