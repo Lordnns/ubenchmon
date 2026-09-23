@@ -1,5 +1,8 @@
 CC      := gcc
-CFLAGS  := -Wall -Wextra -O2 -fPIC -march=native -I include
+# No -march=native: these libs ship in the .deb and must run on any x86_64
+# CPU. Native codegen (AVX/FMA/...) SIGILLs on older targets. Build baseline;
+# pass CFLAGS on the command line for a self-tuned local build.
+CFLAGS  := -Wall -Wextra -O2 -fPIC -I include
 LDFLAGS := -shared
 VERSION ?= 1.0.0
 

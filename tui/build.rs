@@ -10,7 +10,11 @@ fn main() {
         .file("../src/verify.c")
         .include("../include")
         .opt_level(2)
-        .flag_if_supported("-march=native")
+        // NOTE: do NOT use -march=native here. The .deb is built on a CI
+        // runner and installed on arbitrary x86_64 machines; native codegen
+        // emits instructions (AVX/FMA/etc.) the target CPU may lack, causing
+        // SIGILL (illegal instruction) at runtime. Build for the portable
+        // x86_64 baseline. Override with CFLAGS if self-compiling for one box.
         // Suppress intentional/benign C warnings
         .flag_if_supported("-Wno-builtin-macro-redefined")
         .flag_if_supported("-Wno-stringop-truncation")

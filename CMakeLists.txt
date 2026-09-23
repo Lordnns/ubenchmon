@@ -11,7 +11,10 @@ if(NOT CMAKE_BUILD_TYPE)
 endif()
 
 if(NOT WIN32)
-    add_compile_options(-Wall -Wextra -march=native)
+    # No -march=native: keep binaries portable across x86_64 CPUs. Native
+    # codegen emits AVX/FMA/etc. that SIGILL on older targets. Opt in per-build
+    # with -DCMAKE_C_FLAGS=-march=native if you know the target CPU.
+    add_compile_options(-Wall -Wextra)
 endif()
 
 set(UBENCHMON_SOURCES
