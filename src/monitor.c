@@ -93,6 +93,52 @@ static void update_core_usage(const char *stat_buf,
 }
 
 
+//  Read an entire /proc file from offset 0 into buf (NUL-terminated).
+//  /proc files must be read sequentially, so we rewind and loop.
+//  Returns bytes read, or -1 on error.  Used only on the freq fallback path.
+static ssize_t slurp_fd(int fd, char *buf, size_t cap) {
+    if (cap == 0) return -1;
+    if (lseek(fd, 0, SEEK_SET) == (off_t)-1) return -1;
+    size_t total = 0;
+    while (total < cap - 1) {
+        ssize_t n = read(fd, buf + total, cap - 1 - total);
+        if (n < 0) { if (errno == EINTR) continue; return -1; }
+        if (n == 0) break;
+        total += (size_t)n;
+    }
+    buf[total] = '\0';
+    return (ssize_t)total;
+}
+
+//  Fallback current frequency from /proc/cpuinfo for a given logical CPU.
+//  Used when /sys/.../cpufreq/scaling_cur_freq is absent (VMs, cloud, no
+//  cpufreq driver).  Finds "processor : <core_id>" then that block's
+//  "cpu MHz : <float>".  Returns MHz, or 0 if not found.
+static uint32_t read_cpuinfo_mhz(const char *buf, int core_id) {
+    const char *p = buf;
+    while ((p = strstr(p, "processor")) != NULL) {
+        const char *q = p + 9;
+        // advance to the id number on this line (stop at newline)
+        while (*q && *q != '\n' && (*q < '0' || *q > '9')) q++;
+        int id = 0, got = 0;
+        while (*q >= '0' && *q <= '9') { id = id * 10 + (*q++ - '0'); got = 1; }
+
+        if (got && id == core_id) {
+            const char *mhz  = strstr(q, "cpu MHz");
+            const char *next = strstr(q, "\nprocessor");
+            if (mhz && (!next || mhz < next)) {
+                const char *r = mhz;
+                while (*r && *r != ':' && *r != '\n') r++;
+                if (*r == ':') return (uint32_t)(strtod(r + 1, NULL) + 0.5);
+            }
+            return 0;
+        }
+        p = q;
+    }
+    return 0;
+}
+
+
 //  Fast meminfo parser via pre-opened fd — replaces sysinfo()
 static void read_meminfo(int fd, ubenchmon_mem_sample_t *m) {
     char buf[512];
@@ -328,6 +374,12 @@ ubenchmon_monitor_t *ubenchmon_monitor_init(ubenchmon_mon_flags_t flags,
     mon->fd_meminfo   = open("/proc/meminfo", O_RDONLY);
     mon->fd_proc_stat = open("/proc/stat",    O_RDONLY);
 
+    // /proc/cpuinfo fallback for frequency (VMs without cpufreq sysfs).
+    // Heap scratch, not mlock'd — only touched when scaling_cur_freq is 0.
+    mon->fd_cpuinfo     = open("/proc/cpuinfo", O_RDONLY);
+    mon->cpuinfo_buf_sz = 65536;
+    mon->cpuinfo_buf    = malloc(mon->cpuinfo_buf_sz);
+
     // CPU cores ----------------------------------------------------
     if (flags & UBENCHMON_MON_CPU) {
         if (cores && core_count > 0) {
@@ -411,6 +463,10 @@ ubenchmon_status_t ubenchmon_snapshot(ubenchmon_monitor_t *mon,
             if (n > 0) { stat_buf[n] = '\0'; have_stat = 1; }
         }
 
+        // /proc/cpuinfo is slurped lazily — only if a core reports 0 freq.
+        // 0 = not tried, 1 = loaded ok, -1 = failed/absent.
+        int cpuinfo_ready = 0;
+
         for (int i = 0; i < mon->core_count; i++) {
             ubenchmon_core_ctx_t   *c = &mon->cores[i];
             ubenchmon_cpu_sample_t *s = &snap->cpu[i];
@@ -428,6 +484,17 @@ ubenchmon_status_t ubenchmon_snapshot(ubenchmon_monitor_t *mon,
             if (c->fd_freq >= 0)
                 s->freq_mhz = (uint32_t)(ubenchmon_pread_uint64(c->fd_freq)
                                / 1000);  // kHz → MHz
+
+            // Fallback: no cpufreq sysfs (VM/cloud) → read /proc/cpuinfo.
+            if (s->freq_mhz == 0 && mon->fd_cpuinfo >= 0 && mon->cpuinfo_buf) {
+                if (cpuinfo_ready == 0) {
+                    ssize_t n = slurp_fd(mon->fd_cpuinfo, mon->cpuinfo_buf,
+                                         mon->cpuinfo_buf_sz);
+                    cpuinfo_ready = (n > 0) ? 1 : -1;
+                }
+                if (cpuinfo_ready == 1)
+                    s->freq_mhz = read_cpuinfo_mhz(mon->cpuinfo_buf, c->core_id);
+            }
 
             if (have_stat) update_core_usage(stat_buf, c);
             s->usage_pct = c->last_usage_pct;
@@ -502,6 +569,8 @@ void ubenchmon_monitor_destroy(ubenchmon_monitor_t *mon) {
 
     if (mon->fd_meminfo   >= 0) close(mon->fd_meminfo);
     if (mon->fd_proc_stat >= 0) close(mon->fd_proc_stat);
+    if (mon->fd_cpuinfo   >= 0) close(mon->fd_cpuinfo);
+    free(mon->cpuinfo_buf);
 
     for (int i = 0; i < mon->core_count; i++) {
         ubenchmon_core_ctx_t *c = &mon->cores[i];

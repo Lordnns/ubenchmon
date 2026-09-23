@@ -76,6 +76,9 @@ struct ubenchmon_monitor {
     ubenchmon_mon_flags_t flags;
     int fd_meminfo;
     int fd_proc_stat;   // /proc/stat, kept open for per-core CPU usage
+    int fd_cpuinfo;     // /proc/cpuinfo, fallback freq when cpufreq sysfs absent
+    char  *cpuinfo_buf; // scratch for /proc/cpuinfo (heap, not mlock'd; fallback only)
+    size_t cpuinfo_buf_sz;
 
     // CPU
     ubenchmon_core_ctx_t cores[64];
