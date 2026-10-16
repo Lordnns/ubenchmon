@@ -1,0 +1,32 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it using the metadata from this file."
+type: software
+title: "ubenchmon: Benchmark Monitor Library + TUI"
+abstract: >-
+  ubenchmon is a low-latency, minimally-intrusive C library (libubenchmon)
+  and Rust TUI for setting up and monitoring latency-sensitive network
+  protocol benchmarks on Linux. It automates the machine configuration
+  (CPU isolation, frequency boost, IRQ affinity, scheduling, network
+  namespaces/netem) and verification described in "Benchmarking
+  Latency-Sensitive Network Protocols: A Reproducible Methodology for
+  Sub-Millisecond Measurements on Linux", so the methodology is easy to
+  apply and re-apply.
+authors:
+  - given-names: Samuel
+    family-names: Martin-Grisé
+    affiliation: Université du Québec à Chicoutimi
+  - given-names: Valère
+    family-names: Plantevin
+    affiliation: Université du Québec à Chicoutimi
+  - given-names: Yannick
+    family-names: Francillette
+    affiliation: Université du Québec à Chicoutimi
+repository-code: "https://github.com/Lordnns/ubenchmon"
+license: MIT
+keywords:
+  - benchmarking
+  - latency
+  - network protocols
+  - linux
+  - reproducibility
+  - performance monitoring
