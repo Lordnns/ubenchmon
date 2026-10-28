@@ -3,7 +3,7 @@
 //
 // All file descriptors are opened once in _init() and kept open.
 // The hot path (_snapshot) uses only pread() — no open/close,
-// no malloc, no syscalls that can block.
+// no malloc, no syscalls that can block.   
 //
 
 #define _GNU_SOURCE
