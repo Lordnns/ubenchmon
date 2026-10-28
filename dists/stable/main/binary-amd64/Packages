@@ -1,13 +1,13 @@
 Package: ubenchmon
-Version: 0.2.7
+Version: 0.2.8
 Architecture: amd64
 Maintainer: Lordnns
 Priority: optional
 Section: utils
-Filename: pool/main/u/ubenchmon/ubenchmon_0.2.7_amd64.deb
-Size: 596388
-SHA256: 5bf1d0032258264da4f12a40b6ac8c9dc80d457bc8a2ccbf15fb3adc36492b93
-SHA1: a708937404a4ef1c80adf3a476c931acba3b7b31
-MD5sum: bb79c0558f893cec1fc4058aacd19973
+Filename: pool/main/u/ubenchmon/ubenchmon_0.2.8_amd64.deb
+Size: 596618
+SHA256: c38d0ac37f15a2a0a0704c7a3d9d9d2f5a7e2e41ee515ca2e50f8598ba231cf0
+SHA1: 4ec2d8f625c91258866dce2edddc55bdc3f2571f
+MD5sum: 53e42a2e993db55b26c45006e783f5c0
 Description: Latency-sensitive benchmark monitor library and TUI
 
